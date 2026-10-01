@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ASCOM.Remote
@@ -18,7 +13,7 @@ namespace ASCOM.Remote
     {
         private const int WM_PAINT = 0xF;
 
-        private TabControl tabControl;
+        private readonly TabControl tabControl;
 
         public HideTabControlBorders(TabControl tc)
         {
@@ -38,32 +33,30 @@ namespace ASCOM.Remote
 
             if (m.Msg == WM_PAINT)
             {
-                using (Graphics g = Graphics.FromHwnd(m.HWnd))
+                using Graphics g = Graphics.FromHwnd(m.HWnd);
+
+                //Replace the outside white borders:
+                if (tabControl.Parent != null)
                 {
+                    g.SetClip(new Rectangle(0, 0, tabControl.Width - 2, tabControl.Height - 1), CombineMode.Exclude);
+                    using SolidBrush sb = new(tabControl.Parent.BackColor);
+                    g.FillRectangle(sb, new Rectangle(0,
+                                                      tabControl.ItemSize.Height + 2,
+                                                      tabControl.Width,
+                                                      tabControl.Height - (tabControl.ItemSize.Height + 2)));
+                }
 
-                    //Replace the outside white borders:
-                    if (tabControl.Parent != null)
-                    {
-                        g.SetClip(new Rectangle(0, 0, tabControl.Width - 2, tabControl.Height - 1), CombineMode.Exclude);
-                        using (SolidBrush sb = new SolidBrush(tabControl.Parent.BackColor))
-                            g.FillRectangle(sb, new Rectangle(0,
-                                                              tabControl.ItemSize.Height + 2,
-                                                              tabControl.Width,
-                                                              tabControl.Height - (tabControl.ItemSize.Height + 2)));
-                    }
-
-                    //Replace the inside white borders:
-                    if (tabControl.SelectedTab != null)
-                    {
-                        g.ResetClip();
-                        Rectangle r = tabControl.SelectedTab.Bounds;
-                        g.SetClip(r, CombineMode.Exclude);
-                        using (SolidBrush sb = new SolidBrush(tabControl.SelectedTab.BackColor))
-                            g.FillRectangle(sb, new Rectangle(r.Left - 3,
-                                                              r.Top - 1,
-                                                              r.Width + 4,
-                                                              r.Height + 3));
-                    }
+                //Replace the inside white borders:
+                if (tabControl.SelectedTab != null)
+                {
+                    g.ResetClip();
+                    Rectangle r = tabControl.SelectedTab.Bounds;
+                    g.SetClip(r, CombineMode.Exclude);
+                    using SolidBrush sb = new(tabControl.SelectedTab.BackColor);
+                    g.FillRectangle(sb, new Rectangle(r.Left - 3,
+                                                      r.Top - 1,
+                                                      r.Width + 4,
+                                                      r.Height + 3));
                 }
             }
         }

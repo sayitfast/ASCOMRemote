@@ -6,13 +6,25 @@ namespace ASCOM.Remote
 {
     class Configuration : IDisposable
     {
-        private bool LOG_CONFIGURATION_CALLS = false; // Stored as a variable rather than a const to avoid compiler warnings about unreachable code
+        private readonly bool LOG_CONFIGURATION_CALLS = false; // Stored as a variable rather than a const to avoid compiler warnings about unreachable code
 
-        private RegistryKey hiveKey, baseRegistryKey;
+        private readonly RegistryKey hiveKey, baseRegistryKey;
+
+        public static void Reset()
+        {
+            try
+            {
+                RegistryKey hiveKey = RegistryKey.OpenBaseKey(SharedConstants.ASCOM_REMOTE_CONFIGURATION_HIVE, RegistryView.Default);
+                hiveKey.DeleteSubKeyTree(SharedConstants.ASCOM_REMOTE_CONFIGURATION_KEY);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception reseting configuration:\r\n{ex}");
+            }
+        }
 
         public Configuration()
         {
-
             try
             {
                 if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "Configuration New", "About to create base key");
@@ -28,7 +40,8 @@ namespace ASCOM.Remote
 
         public T GetValue<T>(string KeyName, string SubKey, T DefaultValue)
         {
-            if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", string.Format("Getting {0} value '{1}' in subkey '{2}', default: '{3}'", typeof(T).Name, KeyName, SubKey, DefaultValue.ToString()));
+            if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Getting {typeof(T).Name} value '{KeyName}' in subkey '{SubKey}', default: '{DefaultValue}'");
+
             if (typeof(T) == typeof(bool))
             {
                 string registryValue;
@@ -47,11 +60,13 @@ namespace ASCOM.Remote
 
                 if (registryValue == null)
                 {
-                    SetValue<T>(KeyName, SubKey, DefaultValue);
-                    registryValue = DefaultValue.ToString();
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    bool defaultValue = Convert.ToBoolean(DefaultValue);
+                    registryValue = defaultValue.ToString(CultureInfo.InvariantCulture);
                 }
+
                 bool RetVal = Convert.ToBoolean(registryValue, CultureInfo.InvariantCulture);
-                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", string.Format("Retrieved {0} = {1}", KeyName, RetVal.ToString()));
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Retrieved {KeyName} = {RetVal}");
                 return (T)((object)RetVal);
             }
 
@@ -76,7 +91,7 @@ namespace ASCOM.Remote
                     SetValue<T>(KeyName, SubKey, DefaultValue);
                     RetVal = DefaultValue.ToString();
                 }
-                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", string.Format("Retrieved {0} = {1}", KeyName, RetVal.ToString()));
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Retrieved {KeyName} = {RetVal}");
                 return (T)((object)RetVal);
             }
 
@@ -98,12 +113,52 @@ namespace ASCOM.Remote
 
                 if (registryValue == null)
                 {
-                    SetValue<T>(KeyName, SubKey, DefaultValue);
-                    registryValue = DefaultValue.ToString();
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    decimal defaultValue = Convert.ToDecimal(DefaultValue);
+                    registryValue = defaultValue.ToString(CultureInfo.InvariantCulture);
                 }
+
                 decimal RetVal = Convert.ToDecimal(registryValue, CultureInfo.InvariantCulture);
-                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", string.Format("Retrieved {0} = {1}", KeyName, RetVal.ToString()));
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Retrieved {KeyName} = {RetVal}");
                 return (T)((object)RetVal);
+            }
+
+            if (typeof(T) == typeof(DateTime))
+            {
+                string registryValue;
+                if (SubKey == "")
+                {
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "SubKey is empty so getting value directly");
+                    registryValue = (string)baseRegistryKey.GetValue(KeyName);
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "Value retrieved OK: " + registryValue);
+                }
+                else
+                {
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "SubKey has a value so using it...");
+                    registryValue = (string)baseRegistryKey.CreateSubKey(SubKey).GetValue(KeyName);
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "Value retrieved OK: " + registryValue);
+                }
+
+                if (registryValue == null)
+                {
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    return DefaultValue;
+                }
+
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue DateTime", $"String value prior to Convert: {registryValue}");
+
+                if (DateTime.TryParse(registryValue, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out DateTime RetVal))
+                {
+                    // The string parsed OK so return the parsed value;
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue DateTime", $"Retrieved {KeyName} = {RetVal}");
+                    return (T)((object)RetVal);
+                }
+                else // If the string fails to parse, overwrite with the default value and return this
+                {
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue DateTime", $"Failed to parse registry value, persisting and returning the default value: {DefaultValue}");
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    return DefaultValue;
+                }
             }
 
             if ((typeof(T) == typeof(Int32)) | (typeof(T) == typeof(int)))
@@ -124,11 +179,41 @@ namespace ASCOM.Remote
 
                 if (registryValue == null)
                 {
-                    SetValue<T>(KeyName, SubKey, DefaultValue);
-                    registryValue = DefaultValue.ToString();
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    int defaultValue = Convert.ToInt32(DefaultValue);
+                    registryValue = defaultValue.ToString(CultureInfo.InvariantCulture);
                 }
-                Int32 RetVal = Convert.ToInt32(registryValue, CultureInfo.InvariantCulture);
-                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", string.Format("Retrieved {0} = {1}", KeyName, RetVal.ToString()));
+
+                int RetVal = Convert.ToInt32(registryValue, CultureInfo.InvariantCulture);
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Retrieved {KeyName} = {RetVal}");
+                return (T)((object)RetVal);
+            }
+
+            if ((typeof(T) == typeof(Int64)) | (typeof(T) == typeof(long)))
+            {
+                string registryValue;
+                if (SubKey == "")
+                {
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "SubKey is empty so getting value directly");
+                    registryValue = (string)baseRegistryKey.GetValue(KeyName);
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "Value retrieved OK: " + registryValue);
+                }
+                else
+                {
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "SubKey has a value so using it...");
+                    registryValue = (string)baseRegistryKey.CreateSubKey(SubKey).GetValue(KeyName);
+                    if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", "Value retrieved OK: " + registryValue);
+                }
+
+                if (registryValue == null)
+                {
+                    SetValueInvariant<T>(KeyName, SubKey, DefaultValue);
+                    int defaultValue = Convert.ToInt32(DefaultValue);
+                    registryValue = defaultValue.ToString(CultureInfo.InvariantCulture);
+                }
+
+                Int64 RetVal = Convert.ToInt64(registryValue, CultureInfo.InvariantCulture);
+                if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "GetValue", $"Retrieved {KeyName} = {RetVal}");
                 return (T)((object)RetVal);
             }
 
@@ -137,10 +222,57 @@ namespace ASCOM.Remote
 
         public void SetValue<T>(string KeyName, string SubKey, T Value)
         {
-            if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "SetValue", string.Format("Setting {0} value '{1}' in subkey '{2}' to: '{3}'", typeof(T).Name, KeyName, SubKey, Value.ToString()));
+            if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "SetValue", $"Setting {typeof(T).Name} value '{KeyName}' in subkey '{SubKey}' to: '{Value}'");
 
             if (SubKey == "") baseRegistryKey.SetValue(KeyName, Value.ToString());
             else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, Value.ToString());
+        }
+
+        public void SetValueInvariant<T>(string KeyName, string SubKey, T Value)
+        {
+            if (LOG_CONFIGURATION_CALLS) ServerForm.LogMessage(0, 0, 0, "SetValue DateTime", $"Setting {typeof(T).Name} value '{KeyName}' in subkey '{SubKey}' to: '{Value}'");
+
+            if ((typeof(T) == typeof(Int64)) | (typeof(T) == typeof(long)))
+            {
+                Int64 intValue = Convert.ToInt64(Value);
+                if (SubKey == "") baseRegistryKey.SetValue(KeyName, intValue.ToString(CultureInfo.InvariantCulture));
+                else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, intValue.ToString(CultureInfo.InvariantCulture));
+                return;
+            }
+
+            if ((typeof(T) == typeof(Int32)) | (typeof(T) == typeof(int)))
+            {
+                Int32 intValue = Convert.ToInt32(Value);
+                if (SubKey == "") baseRegistryKey.SetValue(KeyName, intValue.ToString(CultureInfo.InvariantCulture));
+                else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, intValue.ToString(CultureInfo.InvariantCulture));
+                return;
+            }
+
+            if (typeof(T) == typeof(bool))
+            {
+                bool boolValue = Convert.ToBoolean(Value);
+                if (SubKey == "") baseRegistryKey.SetValue(KeyName, boolValue.ToString(CultureInfo.InvariantCulture));
+                else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, boolValue.ToString(CultureInfo.InvariantCulture));
+                return;
+            }
+
+            if (typeof(T) == typeof(decimal))
+            {
+                decimal decimalValue = Convert.ToDecimal(Value);
+                if (SubKey == "") baseRegistryKey.SetValue(KeyName, decimalValue.ToString(CultureInfo.InvariantCulture));
+                else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, decimalValue.ToString(CultureInfo.InvariantCulture));
+                return;
+            }
+
+            if (typeof(T) == typeof(DateTime))
+            {
+                DateTime dateTimeValue = Convert.ToDateTime(Value);
+                if (SubKey == "") baseRegistryKey.SetValue(KeyName, dateTimeValue.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+                else baseRegistryKey.CreateSubKey(SubKey).SetValue(KeyName, dateTimeValue.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+                return;
+            }
+
+            throw new DriverException("SetValueInvariant: Unknown type: " + typeof(T).Name);
         }
 
         #region IDisposable Support
@@ -152,8 +284,8 @@ namespace ASCOM.Remote
             {
                 if (disposing)
                 {
-                    if (baseRegistryKey != null) baseRegistryKey.Dispose();
-                    if (hiveKey != null) hiveKey.Dispose();
+                    baseRegistryKey?.Dispose();
+                    hiveKey?.Dispose();
                 }
 
                 disposedValue = true;

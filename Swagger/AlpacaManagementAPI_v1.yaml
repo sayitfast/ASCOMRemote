@@ -1,14 +1,33 @@
-openapi: 3.0.2
+openapi: 3.1.1
 
-servers:
-  - description: Within the "Try it out" URLs, the device URL root is the trailing slash in "/ascom/".
-    url: https://private-d6fe6-ascom.apiary-mock.com/ascom
+## This file is licensed under the MIT license, SPDX identifier: MIT
+
+## Copyright (c) 2025 ASCOM Initiative, Peter Simpson, Bob Denny, Danial Van Noord
+
+## Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+## associated documentation files (the "Software"), to deal in the Software without restriction, 
+## including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+## and/or sell copies of the Software, and to permit persons to whom the Software is furnished to 
+## do so, subject to the following conditions:
+
+## The above copyright notice and this permission notice (including the next paragraph) shall be 
+## included in all copies or substantial portions of the Software.
+
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING 
+## BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+## IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
+## WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
 
 info:
   title: ASCOM Alpaca Management API
     
   version: "v1"
   
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+
   description: >
     This API enables Alpaca devices to be managed.
 
@@ -68,7 +87,13 @@ info:
 
     An HTTP status code of `500` indicates an unexpected error within the device from which it could not recover. Check the body of the response for a text error message.
 
-  
+     ## Copyright and License
+    
+    Copyright (c) 2025 ASCOM Initiative, Peter Simpson, Bob Denny, Danial Van Noord
+     
+# This API has no security
+security: []
+
 paths:
   '/setup':
     get:
@@ -92,12 +117,21 @@ paths:
             text/html:
               schema:
                 type: string
+                description: HTML page with device information.
+        '400':
+          description: 'The device did not understand the command.'
+          content:
+            text/html:
+              schema:
+                type: string
+                description: HTML message describing the issue.
         '500':
           description: Server internal error so return an error message
           content:
             text/html:
               schema:
                 type: string
+                description: HTML message describing the issue.
                 
   '/setup/v1/{device_type}/{device_number}/setup':
     get:
@@ -125,12 +159,14 @@ paths:
             text/html:
               schema:
                 type: string
+                description: HTML message describing the issue.
         '500':
           description: 'Server internal error so return an error message'
           content:
             text/html:
               schema:
                 type: string
+                description: HTML message describing the issue.
                 
   '/management/apiversions':
     get:
@@ -151,13 +187,13 @@ paths:
         '400':
           description: 'Method or parameter value error, check error message'
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ErrorMessage'
         '500':
           description: 'Server internal error, check error message'
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ErrorMessage'
                 
@@ -173,23 +209,23 @@ paths:
         - Management Interface (JSON)
       responses:
         '200':
-          description: Cross cutting information that applies to all devices servered through this URL:Port.
+          description: Cross cutting information that applies to all devices served through this URL:Port.
           content:
             application/json:
               schema:
-                 $ref: '#/components/schemas/DescriptionResponse'
+                $ref: '#/components/schemas/DescriptionResponse'
         '403':
           description: 'The provided path specifies an unsupported device or method, return an error message to display in the browser'
           content:
-            text/html:
+            text/plain:
               schema:
-                type: string
+                $ref: '#/components/schemas/ErrorMessage'
         '500':
           description: 'Server internal error so return an error message'
           content:
-            text/html:
+            text/plain:
               schema:
-                type: string
+                $ref: '#/components/schemas/ErrorMessage'
                 
   '/management/v1/configureddevices':
     get:
@@ -211,15 +247,15 @@ paths:
         '403':
           description: 'The provided path specifies an unsupported device or method, return an error message to display in the browser'
           content:
-            text/html:
+            text/plain:
               schema:
-                type: string
+                $ref: '#/components/schemas/ErrorMessage'
         '500':
           description: 'Server internal error so return an error message'
           content:
-            text/html:
+            text/plain:
               schema:
-                type: string
+                $ref: '#/components/schemas/ErrorMessage'
 
 components:
   parameters:
@@ -241,29 +277,30 @@ components:
       schema:
         type: integer
         format: uint32
-        default: 0
         minimum: 0
         maximum: 4294967295
         
     ClientIDQuery:
       name: ClientID
-      description: Client's unique ID.
+      description: Client's unique ID. (0 to 4294967295). The client should choose a value at start-up, e.g. a random value between 0 and 65535, and send this value on every transaction to help associate entries in device logs with this particular client.
       in: query
       required: false
       schema:
         type: integer
-        format: int32
-        default: 1
+        format: uint32
+        minimum: 0
+        maximum: 4294967295
         
     ClientTransactionIDQuery:
       name: ClientTransactionID
-      description: Client's transaction ID.
+      description: Client's transaction ID. (0 to 4294967295). The client should start this count at 1 and increment by one on each successive transaction. This will aid associating entries in device logs with corresponding entries in client side logs.
       in: query
       required: false
       schema:
         type: integer
-        format: int32
-        default: 1234
+        format: uint32
+        minimum: 0
+        maximum: 4294967295
         
   schemas:
     ConfiguredDevicesResponse:
@@ -360,8 +397,4 @@ components:
 
     ErrorMessage:
       type: string
-      description: Error message
-      properties:
-        Value:
-          type: string
-          description: Error message
+      description: Plain text message describing the issue.
